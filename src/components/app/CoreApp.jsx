@@ -12,6 +12,7 @@ import Settings from "./Settings/Settings";
 import Account from "./Account/Account";
 import Feedback from "../Feedback/Feedback";
 import LoginBottomSheet from "../Login/LoginBottomSheet";
+import QCM from "./QCM/Qcm";
 
 
 export { Lab };
@@ -27,5 +28,6 @@ export { Settings };
 export { Account };
 export { Feedback };
 export { LoginBottomSheet };
+export { QCM };
 
 // export default { Header, Dashboard, Grades, Homeworks, Timetable, Messaging }

@@ -37,6 +37,7 @@ const Settings = lazy(() => import("./components/app/CoreApp").then((module) => 
 const Account = lazy(() => import("./components/app/CoreApp").then((module) => { return { default: module.Account } }));
 const Feedback = lazy(() => import("./components/app/CoreApp").then((module) => { return { default: module.Feedback } }));
 const LoginBottomSheet = lazy(() => import("./components/app/CoreApp").then((module) => { return { default: module.LoginBottomSheet } }));
+const QCM = lazy(() => import("./components/app/CoreApp").then((module) => { return { default: module.QCM }}));
 
 
 function consoleLogEDPLogo() {
@@ -2420,6 +2421,73 @@ export default function App({ edpFetch }) {
         });
     }
 
+    async function fetchForms(controller = new AbortController()) {
+        abortControllers.current.push(controller);
+    
+        try {
+          const isGuest = accountsListState[activeAccount].firstName === "Guest";
+          let responseCode;
+    
+          if (!isGuest) {
+            const response = await edpFetch(
+              getProxiedURL(
+                `https://api.ecoledirecte.com/v3/edforms.awp?verbe=getlist&v=${apiVersion}`,
+                true
+              ),
+              {
+                method: "POST",
+                headers: {
+                  "x-token": tokenState,
+                },
+                body: `data=${JSON.stringify({
+                  anneeForms: getUserSettingValue("isSchoolYearEnabled")
+                    ? getUserSettingValue("schoolYear").join("-")
+                    : getCurrentSchoolYear().join("-"),
+                  typeEntity: accountsListState[activeAccount].accountType,
+                  idEntity: accountsListState[activeAccount].id,
+                })}`,
+                signal: controller.signal,
+                referrerPolicy: "no-referrer",
+              },
+              "json"
+            );
+    
+            responseCode = response.code;
+    
+            if (responseCode === 200) {
+              changeUserData("formsList", response.data);
+              console.log("Forms fetched successfully:", response.data);
+              return response.data;
+            } else if (responseCode === 520 || responseCode === 525) {
+              requireLogin(); // Token invalide
+              return null;
+            }
+          }
+    
+          // Gestion des données locales pour les invités
+          if (isGuest || responseCode === 49969) {
+            const localData = await import("./data/forms.json");
+            setUserData("formsList", localData.data);
+    
+            return localData.data;
+          }
+    
+          console.error("Failed to fetch forms:", responseCode);
+          return null;
+        } catch (error) {
+          if (error.name === "AbortError") {
+            console.log("Fetch forms request was aborted");
+          } else {
+            console.error("Error fetching forms:", error);
+          }
+          return null;
+        } finally {
+          abortControllers.current.splice(
+            abortControllers.current.indexOf(controller),
+            1
+          );
+        }
+      }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //                                                                                                                                                                                 //
@@ -2710,6 +2778,16 @@ export default function App({ edpFetch }) {
                             element: <Messaging isLoggedIn={isLoggedIn} activeAccount={activeAccount} fetchMessages={fetchMessages} fetchMessageContent={fetchMessageContent} fetchMessageMarkAsUnread={fetchMessageMarkAsUnread} renameFolder={renameFolder} deleteFolder={deleteFolder} createFolder={createFolder} archiveMessage={archiveMessage} unarchiveMessage={unarchiveMessage} moveMessage={moveMessage} deleteMessage={deleteMessage} />,
                             path: ":userId/messaging"
                         },
+                        {
+                          element: (
+                            <Navigate to={`/app/${activeAccount}/qcms`} replace={true} />
+                          ),
+                          path: "qcms",
+                        },
+                        {
+                          element: <QCM userSettings={useUserSettings} />,
+                          path: ":userId/qcms",
+                        },
                     ],
                 },
             ],
@@ -2725,6 +2803,7 @@ export default function App({ edpFetch }) {
         fetchHomeworksDone,
         fetchHomeworks,
         fetchHomeworksSequentially,
+        fetchForms,
         promptInstallPWA,
         activeAccount,
         accountsListState,
@@ -2745,6 +2824,7 @@ export default function App({ edpFetch }) {
         fetchHomeworksDone,
         fetchHomeworks,
         fetchHomeworksSequentially,
+        fetchForms,
         promptInstallPWA,
         activeAccount,
         accountsListState,
